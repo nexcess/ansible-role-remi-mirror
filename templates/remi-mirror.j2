@@ -1,0 +1,34 @@
+#!/bin/bash
+set -e
+
+source='{{ remi_mirror_source }}'
+destination='{{ mirror_doc_root }}/remi/'
+
+lockfile=/tmp/$(basename -- "${destination}").lock
+
+
+if mkdir "$lockfile" 2>/dev/null;  then
+  # Exclude all metadata files
+  timeout 1d rsync "${source}" --recursive --times --links \
+                                           --hard-links \
+                                           --exclude repodata/* \
+                                           --timeout=10800 \
+                                           --exclude '.*.rpm.*' \
+                                           --exclude 'hostedby.png' \
+                                           "${destination}"
+
+  # Now also transfer the metadata and delete afterwards
+  timeout 1d rsync "${source}" --recursive --times --links \
+                                           --hard-links --delete-after \
+                                           --timeout=10800 \
+                                           --exclude '.*.rpm.*' \
+                                           --exclude 'hostedby.png' \
+                                           "${destination}"
+
+  date +%s > {{ mirror_timestamp_dir }}/remi
+else
+  cat <<EOF >&2
+ERROR: Another rsync is already running and has the lock file
+$LOCKFILE.
+EOF
+fi
